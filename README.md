@@ -189,11 +189,33 @@ codeswarm build --idea "A CLI tool that converts between temperature units"
 codeswarm build --spec examples/todo_api.yaml --provider openai
 ```
 
-Output lands in `./output/<project-name>/`, including:
-- the generated source (`app/`) and tests (`tests/`),
-- a `README.md` and `requirements.txt`,
-- `.codeswarm/report.json` — the per-feature pass/fail record,
-- `.codeswarm/design.md` — the architecture the swarm designed.
+Output lands in `./output/<project-name>/`. The `.codeswarm/` folder captures
+**what each phase decided, written to disk as that phase completes** (not just at
+the end):
+
+| File | Written after | Contents |
+|---|---|---|
+| `.codeswarm/requirements.md` / `.json` | Phase 1 | the testable requirements |
+| `.codeswarm/design.md` | Phase 2 | the architecture the swarm chose |
+| `.codeswarm/plan.md` / `.json` | Phase 3 | the feature breakdown + acceptance criteria |
+| `.codeswarm/report.json` | refreshed each phase | requirements, features, per-feature attempts, gate results |
+
+Plus the generated project itself: `app/` (source), `tests/`, `README.md`, and
+`requirements.txt`.
+
+**Watch it live.** Because artifacts are written as each phase finishes, you can
+tail them from a second terminal while a build runs:
+
+```bash
+tail -f output/<name>/.codeswarm/plan.md
+```
+
+Or pass **`--verbose`** to stream the requirements summary, the full design, and
+each feature's acceptance criteria to the console as they're produced:
+
+```bash
+codeswarm build --idea "..." --verbose
+```
 
 > **Note on `--dry-run`:** the mock provider ignores your idea and always emits a
 > small calculator so the pipeline can run fully offline. Use a real provider to
@@ -273,6 +295,7 @@ codeswarm build [options]
   --sequential           Build features one at a time (default: parallel).
   --max-parallel N       Max features built concurrently (default 4).
   --no-tests             Generate code without running the test gate.
+  --verbose, -v          Stream requirements, full design, and acceptance criteria live.
   --dry-run              Use the offline mock provider (no API key).
 ```
 

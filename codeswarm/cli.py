@@ -98,6 +98,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         overrides["swarm"]["output_dir"] = args.output
     if args.no_tests:
         overrides["swarm"]["run_tests"] = False
+    if args.verbose:
+        overrides["swarm"]["verbose"] = True
     if args.sequential:
         overrides["swarm"]["parallel_features"] = False
     if args.max_parallel is not None:
@@ -198,6 +200,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Build features one at a time (default: parallel).")
     b.add_argument("--max-parallel", type=int, help="Max features built concurrently (default 4).")
     b.add_argument("--no-tests", action="store_true", help="Generate code without running tests.")
+    b.add_argument("--verbose", "-v", action="store_true",
+                   help="Print requirements, full design, and acceptance criteria live as produced.")
     b.add_argument("--dry-run", action="store_true",
                    help="Use the offline mock provider (no API key needed).")
     b.set_defaults(func=cmd_build)

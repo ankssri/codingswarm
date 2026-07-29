@@ -109,6 +109,7 @@ class Swarm:
         self.parallel = bool(self.swarm_cfg.get("parallel_features", True))
         self.max_parallel = int(self.swarm_cfg.get("max_parallel_features", 4))
         self.target_language = self.swarm_cfg.get("target_language", "python")
+        self.verbose = bool(self.swarm_cfg.get("verbose", False))
 
     # -- helpers ----------------------------------------------------------
 
@@ -137,18 +138,33 @@ class Swarm:
 
         state = ProjectState(idea=idea, name=name, target_language=self.target_language)
 
-        # Phase 1: requirements
+        # Phase 1: requirements  (persisted immediately)
         self._event("orchestrator", "Phase 1/5 — Requirements")
         state.requirements = self.requirements_agent.analyze(idea)
+        self._save_requirements(ws, state)
+        self._event("requirements", f"saved → .codeswarm/requirements.md")
+        self._event("requirements", f"summary: {state.requirements.summary}")
 
-        # Phase 2: architecture
+        # Phase 2: architecture  (persisted immediately)
         self._event("orchestrator", "Phase 2/5 — Architecture")
         state.design = self.architect_agent.design(idea, state.requirements)
+        ws.write_file(".codeswarm/design.md", state.design or "")
+        self._event("architect", "saved → .codeswarm/design.md")
+        if self.verbose:
+            self._event("architect", "\n" + (state.design or ""))
 
-        # Phase 3: planning
+        # Phase 3: planning  (persisted immediately, plan printed live)
         self._event("orchestrator", "Phase 3/5 — Planning")
         state.features = self.planner_agent.plan(idea, state.requirements, state.design)
-        self._event("orchestrator", f"Planned {len(state.features)} feature(s).")
+        self._save_plan(ws, state)
+        self._event("planner", f"planned {len(state.features)} feature(s) → .codeswarm/plan.md")
+        for f in state.features:
+            self._event("planner", f"  • {f.id}: {f.name}")
+            if self.verbose:
+                for c in f.acceptance_criteria:
+                    self._event("planner", f"      - {c}")
+        # Write an initial report now so it exists during the (long) build phase.
+        self._persist_report(ws, state, integration_ok=True)
 
         # Phase 4: build features (sequential or parallel)
         integration_ok = True
@@ -158,6 +174,8 @@ class Swarm:
         else:
             self._event("orchestrator", "Phase 4/5 — Build/Test/Review (sequential)")
             self._build_sequential(ws, state)
+        # Refresh the report now that all features are built (before integration).
+        self._persist_report(ws, state, integration_ok)
 
         # Phase 5: integration
         self._event("orchestrator", "Phase 5/5 — Integration")
@@ -167,7 +185,7 @@ class Swarm:
                 continue
             ws.write_file(path, content)
 
-        report = self._write_report(ws, state, integration_ok)
+        report = self._persist_report(ws, state, integration_ok)
         done = sum(1 for f in state.features if f.status == FeatureStatus.DONE)
         failed = sum(1 for f in state.features if f.status == FeatureStatus.FAILED)
         return RunResult(
@@ -344,9 +362,46 @@ class Swarm:
                 parts.append(f"- {issue}")
         return "\n".join(parts)
 
+    # -- per-phase artifact persistence ----------------------------------
+
+    def _save_requirements(self, ws: Workspace, state: ProjectState) -> None:
+        """Write requirements as JSON + a human-readable Markdown file."""
+        req = state.requirements
+        if not req:
+            return
+        ws.write_file(".codeswarm/requirements.json", json.dumps(req.to_dict(), indent=2))
+        lines = [f"# Requirements — {state.name}", "", f"**Idea:** {state.idea}", "",
+                 f"## Summary", req.summary or "", "", "## Functional"]
+        lines += [f"- {r}" for r in req.functional] or ["- (none)"]
+        lines += ["", "## Non-functional"] + ([f"- {r}" for r in req.non_functional] or ["- (none)"])
+        lines += ["", "## Assumptions"] + ([f"- {r}" for r in req.assumptions] or ["- (none)"])
+        ws.write_file(".codeswarm/requirements.md", "\n".join(lines) + "\n")
+
+    def _save_plan(self, ws: Workspace, state: ProjectState) -> None:
+        """Write the feature plan as JSON + a human-readable Markdown file."""
+        plan = [
+            {
+                "id": f.id,
+                "name": f.name,
+                "description": f.description,
+                "acceptance_criteria": f.acceptance_criteria,
+            }
+            for f in state.features
+        ]
+        ws.write_file(".codeswarm/plan.json", json.dumps({"features": plan}, indent=2))
+        lines = [f"# Feature Plan — {state.name}", "",
+                 f"{len(state.features)} feature(s) planned.", ""]
+        for f in state.features:
+            lines += [f"## {f.id}: {f.name}", "", f.description or "", "", "**Acceptance criteria:**"]
+            lines += [f"- {c}" for c in f.acceptance_criteria] or ["- (none)"]
+            lines += [""]
+        ws.write_file(".codeswarm/plan.md", "\n".join(lines) + "\n")
+
     # -- reporting --------------------------------------------------------
 
-    def _write_report(self, ws: Workspace, state: ProjectState, integration_ok: bool) -> dict:
+    def _persist_report(self, ws: Workspace, state: ProjectState, integration_ok: bool) -> dict:
+        """Write/refresh report.json. Idempotent — called after each phase so the
+        report exists and updates on disk *during* the run, not only at the end."""
         report = {
             "project": state.name,
             "idea": state.idea,
@@ -360,5 +415,4 @@ class Swarm:
             },
         }
         ws.write_file(".codeswarm/report.json", json.dumps(report, indent=2))
-        ws.write_file(".codeswarm/design.md", state.design or "")
         return report
