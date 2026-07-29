@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------------------
+# CodeSwarm default configuration.
+#
+# Copy/edit this file and pass it with `--config`, or override individual
+# values on the CLI. Anything you don't set falls back to these defaults.
+# ---------------------------------------------------------------------------
+
+# Which provider the agents use unless a role overrides it below.
+# One of: byteplus | openai | gemini | mock
+provider: byteplus
+
+# Provider connection details. `model` is the model/endpoint id sent on each
+# request. `api_key_env` names the environment variable holding the API key
+# (read from your shell env or the .env file). Change `model` to a model you
+# actually have access to on that platform.
+providers:
+  byteplus:
+    # BytePlus ModelArk OpenAI-compatible endpoint (international region).
+    # Verify the region host for your account in the ModelArk console.
+    base_url: "https://ark.ap-southeast.bytepluses.com/api/v3"
+    api_key_env: "ARK_API_KEY"
+    # This can be a model name (e.g. a Dola-Seed/Seed model) or an endpoint id
+    # (ep-......). Replace with the id you provisioned in ModelArk.
+    model: "seed-1-6-250615"
+
+  openai:
+    base_url: "https://api.openai.com/v1"
+    api_key_env: "OPENAI_API_KEY"
+    model: "gpt-4.1"
+
+  gemini:
+    # Gemini's OpenAI-compatible surface — lets us reuse the same client.
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    api_key_env: "GEMINI_API_KEY"
+    model: "gemini-2.5-pro"
+
+  mock:
+    # Offline provider. Produces deterministic, self-consistent output so you
+    # can run the whole pipeline end-to-end with no API key (great for demos
+    # and CI). Selected automatically with `--dry-run`.
+    base_url: ""
+    api_key_env: ""
+    model: "mock"
+
+# Optional per-role overrides. Leave a role empty ({}) to inherit the top-level
+# provider. You might, for example, use a big model for architecture/review and
+# a cheaper/faster one for the developer loop.
+#
+# Each entry may set: provider, model, temperature.
+agents:
+  requirements: {}
+  architect: {}
+  planner: {}
+  developer: {}
+  tester: {}
+  reviewer: {}
+  security: {}
+  integrator: {}
+
+# Swarm behaviour.
+swarm:
+  # Programming language the swarm generates. Only "python" is wired up to run
+  # tests automatically today; others still generate code but skip the runner.
+  target_language: "python"
+
+  # Max build -> test -> review attempts per feature before it is marked failed.
+  max_feature_iterations: 3
+
+  # The developer is an agentic loop: it reads/writes files and runs tests via
+  # tools until it calls finish. This caps how many tool-using steps it may take
+  # per attempt (guards against runaway loops / token burn).
+  developer_max_steps: 8
+
+  # Build independent features concurrently, each in its own isolated workspace,
+  # then merge and re-run the FULL suite (with an integration-repair loop for any
+  # cross-feature breakage). Set false to build strictly one feature at a time.
+  parallel_features: true
+  max_parallel_features: 4
+
+  # Actually execute the generated tests (pytest) as the quality gate.
+  # Turn off to generate code without running it.
+  run_tests: true
+
+  # Seconds before a test run is killed.
+  test_timeout_seconds: 120
+
+  # Sampling temperature for the agents (lower = more deterministic code).
+  temperature: 0.2
+
+  # Where generated projects are written (a subfolder per run is created).
+  output_dir: "./output"

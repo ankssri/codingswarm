@@ -1,0 +1,12 @@
+# Example CodeSwarm spec. Run with:
+#   codeswarm build --spec examples/todo_api.yaml
+#   codeswarm build --spec examples/todo_api.yaml --dry-run   # offline demo
+
+name: todo-core
+
+idea: >
+  A small in-memory to-do list library (pure Python, standard library only)
+  exposing an add_task(title), complete_task(id), list_tasks(status=None), and
+  delete_task(id) API. Tasks have an auto-incrementing integer id, a title, and
+  a status of "open" or "done". Invalid operations (e.g. completing a
+  non-existent task) must raise a clear ValueError.

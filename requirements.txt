@@ -1,0 +1,10 @@
+# CodeSwarm runtime dependencies (intentionally minimal).
+# The framework itself only needs these; generated projects are asked to
+# stick to the Python standard library + pytest so they run anywhere.
+
+openai>=1.30.0        # OpenAI-compatible client used for OpenAI, BytePlus ModelArk, and Gemini
+PyYAML>=6.0           # config + spec files
+python-dotenv>=1.0.0  # load API keys from a .env file
+rich>=13.0.0          # pretty CLI output (optional but nice)
+pytest>=7.4.0         # used to run the tests the swarm writes
+coverage>=7.0.0       # lets the agentic Tester inspect line coverage of its tests

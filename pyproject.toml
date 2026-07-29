@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codeswarm"
+version = "0.1.0"
+description = "A provider-agnostic swarm of LLM agents that build, test, and review software feature-by-feature."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Ankur Srivastava" }]
+dependencies = [
+    "openai>=1.30.0",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.0.0",
+    "pytest>=7.4.0",
+    "coverage>=7.0.0",
+]
+
+[project.scripts]
+codeswarm = "codeswarm.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["codeswarm*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
