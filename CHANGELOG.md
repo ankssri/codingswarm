@@ -39,4 +39,8 @@ Initial release.
 ### Tooling & docs
 - CLI (`codeswarm build`) with rich progress output and a per-feature results
   table. Runs from a one-line `--idea` or a YAML `--spec`.
-- README, ARCHITECTURE, CONTRIBUTING, example spec, and an offline test suite.
+- Example specs (`todo_api`, `password_strength`, `csv_stats`) and a reproducible
+  evaluation harness (`scripts/run_eval.sh`) that builds each spec and then
+  independently re-runs its generated tests.
+- README (incl. a Quick-evaluation demo), ARCHITECTURE, CONTRIBUTING, and an
+  offline test suite.

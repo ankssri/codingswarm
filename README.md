@@ -201,6 +201,62 @@ Output lands in `./output/<project-name>/`, including:
 
 ---
 
+## Quick evaluation (reproducible demo)
+
+Three ready-made specs let you watch the swarm build real projects and prove each
+one passes its own tests. The harness `scripts/run_eval.sh` builds every spec,
+then **independently re-runs each generated project's test-suite** and prints a
+PASS/FAIL summary.
+
+| Spec | What it builds |
+|---|---|
+| [`examples/todo_api.yaml`](examples/todo_api.yaml) | In-memory to-do list library (add/complete/list/delete). |
+| [`examples/password_strength.yaml`](examples/password_strength.yaml) | Password-strength validator — exercises the **security** gate. |
+| [`examples/csv_stats.yaml`](examples/csv_stats.yaml) | CSV column statistics (mean/median/stddev) — several parallel features. |
+
+**1) Offline smoke test** — no API key, verifies the pipeline mechanics end-to-end:
+
+```bash
+scripts/run_eval.sh --dry-run
+```
+
+**2) Real run against BytePlus ModelArk.** Set your key and pick a **tool-calling-
+capable** ModelArk model (the agentic Developer/Tester need function calling):
+
+```bash
+export ARK_API_KEY=your_key_here
+scripts/run_eval.sh --provider byteplus --model <your-modelark-model-id>
+```
+
+Build a single spec instead of all three:
+
+```bash
+codeswarm build --spec examples/csv_stats.yaml --provider byteplus
+```
+
+**What a successful run looks like** — for each spec you should see every feature
+reach `done` with `tests=pass`, `review=ok`, `security=ok`, the combined suite
+`passing`, and the final summary line:
+
+```
+  - todo-core: PASS (generated tests green)
+  - password-strength: PASS (generated tests green)
+  - csv-stats: PASS (generated tests green)
+```
+
+Each generated project is under `./output/<name>/`; inspect
+`.codeswarm/report.json` for the per-feature record.
+
+> **Reproducibility & honesty:** the offline (`--dry-run`) run is verified to pass
+> here — it exercises the full orchestration, gates, parallel build, and the
+> independent re-test. The **BytePlus** results depend on your chosen model's
+> coding and tool-calling ability; the commands above are the exact, repeatable
+> way to reproduce the demo once your `ARK_API_KEY` is set. Under `--dry-run` the
+> mock builds a generic calculator regardless of the spec (offline determinism),
+> so use a real provider to build the actual described projects.
+
+---
+
 ## CLI reference
 
 ```
@@ -311,7 +367,8 @@ CodingSwarm/
 │   ├── llm/              # provider abstraction + tool-calling (BytePlus/OpenAI/Gemini/mock)
 │   └── agents/           # the specialist roles + their prompts
 ├── config/default.yaml   # all tunable settings
-├── examples/todo_api.yaml
+├── examples/             # ready-to-run specs (todo, password-strength, csv-stats)
+├── scripts/run_eval.sh   # reproducible eval harness (build + independent re-test)
 ├── docs/ARCHITECTURE.md  # deep-dive design doc
 ├── tests/                # the framework's own offline test suite
 ├── CONTRIBUTING.md · CHANGELOG.md · LICENSE

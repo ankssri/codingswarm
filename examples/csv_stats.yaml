@@ -1,0 +1,17 @@
+# A data-processing example with several independent, testable features — good
+# for watching the per-feature quality loop (and parallel build) work. Run with:
+#   codeswarm build --spec examples/csv_stats.yaml            # BytePlus
+#   codeswarm build --spec examples/csv_stats.yaml --dry-run  # offline
+
+name: csv-stats
+
+idea: >
+  A pure-Python CSV statistics library using only the standard library (the
+  built-in `csv` module — no pandas or numpy). Requirements:
+  - Load a CSV from either an in-memory string or a file path into rows, using
+    the first row as the header.
+  - Detect which columns are numeric (all non-blank cells parse as float).
+  - For each numeric column, compute count, mean, median, min, max, and
+    population standard deviation, ignoring blank cells.
+  - Return a summary as a dict keyed by column name.
+  - Raise ValueError on malformed input or an empty file.
