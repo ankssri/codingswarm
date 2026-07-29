@@ -74,6 +74,11 @@ class OpenAICompatibleProvider(LLMProvider):
             max_retries=0,  # we implement our own backoff below
         )
         self._max_retries = max_retries
+        # Masked fingerprint of the key actually in use — safe to log, and makes
+        # "wrong/stale key" failures obvious without revealing the secret.
+        self._key_fp = (
+            f"{api_key[:4]}…{api_key[-2:]} (len={len(api_key)})" if len(api_key) > 8 else f"len={len(api_key)}"
+        )
 
     def complete(
         self,
@@ -128,9 +133,16 @@ class OpenAICompatibleProvider(LLMProvider):
                 if attempt < self._max_retries - 1:
                     time.sleep(2 ** attempt)
 
+        hint = ""
+        if "401" in str(last_err) or "AuthenticationError" in str(last_err):
+            hint = (
+                f"\nThe key in use was {self._key_fp}. If that doesn't match your .env, a stale "
+                f"'{self.name.upper()}_API_KEY' exported in your shell is shadowing it — run "
+                f"`unset ARK_API_KEY` (or the matching var) and retry, or open a new terminal."
+            )
         raise RuntimeError(
             f"LLM request to provider '{self.name}' (model '{self.model}') failed "
-            f"after {self._max_retries} attempts: {last_err}"
+            f"after {self._max_retries} attempts: {last_err}{hint}"
         ) from last_err
 
 

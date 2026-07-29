@@ -17,10 +17,14 @@ from . import __version__
 from .config import load_config
 
 # Load .env if present so API keys are available.
+# override=True makes the .env file authoritative: without it, python-dotenv
+# leaves any value already exported in the shell in place, so a stale
+# `export ARK_API_KEY=...` in your shell/profile would silently shadow the key
+# in .env and cause confusing 401s. Users put keys in .env expecting them to win.
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    load_dotenv(override=True)
 except Exception:  # pragma: no cover - dotenv is optional at runtime
     pass
 
