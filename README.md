@@ -411,6 +411,10 @@ CodingSwarm/
 
 ## Documentation
 
+- **[docs/CodeSwarm-Solution-Design.pdf](docs/CodeSwarm-Solution-Design.pdf)** —
+  the full solution design document (architecture, agents, quality gates,
+  execution model, security, best-practice alignment). Regenerate with
+  `python scripts/make_design_pdf.py` (needs `pip install reportlab`).
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how the layers fit together,
   the quality loop, parallel/merge internals, and extension points.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — dev setup and conventions.
