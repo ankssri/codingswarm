@@ -38,6 +38,31 @@ report of exactly which features passed their gates.
 | **Security Reviewer** | Dedicated security gate — scans for injection, unsafe `eval`/`exec`, path traversal, hardcoded secrets, unsafe deserialization, etc. |
 | **Integrator** | Adds README / requirements scaffolding to the generated project. |
 
+## Architecture
+```
+
+                        ┌──────────────────┐
+   idea / spec ───────► │   Orchestrator   │  (codeswarm/pipeline.py)
+                        │     (Swarm)      │
+                        └───┬───┬───┬──────┘
+             requirements   │   │   │   planner ... developer/tester/reviewer
+                            ▼   ▼   ▼
+                        ┌──────────────────┐
+                        │   Agents (LLM)   │  (codeswarm/agents/)
+                        └────────┬─────────┘
+                                 │  every agent calls ▼
+                        ┌──────────────────┐
+                        │  LLM Provider    │  (codeswarm/llm/)
+                        │  BytePlus/OpenAI │  one OpenAI-compatible client,
+                        │  /Gemini/mock    │  swap base_url + key per provider
+                        └──────────────────┘
+        writes files ▼                         runs tests ▼
+        Workspace (codeswarm/workspace.py)   Sandbox (codeswarm/sandbox.py)
+                    │                                   │
+                    └──────────► ./output/<project>/ ◄──┘
+
+```
+
 ### How quality is guaranteed (the core of your ask)
 
 For **every feature**, the orchestrator runs this loop (up to `max_feature_iterations`, default 3):
@@ -112,34 +137,7 @@ the swarm needs **no external connection** to design, write, and test the code.
 
 ---
 
-## Architecture
-
-```
-                        ┌──────────────────┐
-   idea / spec ───────► │   Orchestrator   │  (codeswarm/pipeline.py)
-                        │     (Swarm)      │
-                        └───┬───┬───┬──────┘
-             requirements   │   │   │   planner ... developer/tester/reviewer
-                            ▼   ▼   ▼
-                        ┌──────────────────┐
-                        │   Agents (LLM)   │  (codeswarm/agents/)
-                        └────────┬─────────┘
-                                 │  every agent calls ▼
-                        ┌──────────────────┐
-                        │  LLM Provider    │  (codeswarm/llm/)
-                        │  BytePlus/OpenAI │  one OpenAI-compatible client,
-                        │  /Gemini/mock    │  swap base_url + key per provider
-                        └──────────────────┘
-        writes files ▼                         runs tests ▼
-        Workspace (codeswarm/workspace.py)   Sandbox (codeswarm/sandbox.py)
-                    │                                   │
-                    └──────────► ./output/<project>/ ◄──┘
-```
-
-**Why Python?** You already know it, and it's the native language of LLM tooling
-— plus it lets the swarm *run the tests it writes* in-process, which is what
-makes the quality gate real rather than cosmetic. (The generated *projects* are
-also Python by default; the architecture cleanly supports adding other target
+**The generated *projects* are in Python by default; the architecture cleanly supports adding other target
 languages later — see *Extending*.)
 
 **Provider-agnostic by design:** BytePlus ModelArk, OpenAI, and Gemini all expose
