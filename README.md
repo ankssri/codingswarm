@@ -171,7 +171,14 @@ cp .env.example .env
 
 ## Quickstart
 
-**Try it offline first** — no API key needed (uses the deterministic mock provider):
+**Check your setup first** — `doctor` verifies config, API key (masked), live
+connectivity, and tool-calling in one shot:
+
+```bash
+codeswarm doctor
+```
+
+**Try it offline** — no API key needed (uses the deterministic mock provider):
 
 ```bash
 codeswarm build --idea "A tiny calculator library" --dry-run
@@ -282,6 +289,10 @@ Each generated project is under `./output/<name>/`; inspect
 ## CLI reference
 
 ```
+codeswarm doctor [--provider NAME] [--model ID] [--config path.yaml]
+    Diagnose setup: config, API key (masked fingerprint + source), live
+    connectivity, and whether the model supports tool-calling.
+
 codeswarm build [options]
 
   --idea "..."           One-line description of what to build.

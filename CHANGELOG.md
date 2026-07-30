@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+- `codeswarm doctor` — one-shot setup diagnosis: config, API key (masked
+  fingerprint + whether it comes from .env or a shadowing shell export), live
+  connectivity, and whether the model supports tool-calling.
+- Per-phase artifact persistence: `.codeswarm/requirements.md`/`.json`,
+  `design.md`, `plan.md`/`.json`, and a `report.json` refreshed after each phase
+  — written *during* the run so you can inspect or `tail -f` them live.
+- `build --verbose/-v` streams requirements, full design, and acceptance criteria
+  to the console as they are produced.
+
+### Fixed
+- `.env` is now authoritative over stale shell exports (`load_dotenv(override=True)`);
+  keys are sanitized (whitespace/quotes/`Bearer`); 401s show a masked key
+  fingerprint and remediation hint.
+
 ## [0.1.0] — 2026-07-29
 
 Initial release.

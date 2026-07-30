@@ -109,6 +109,13 @@ def test_developer_tool_loop_writes_and_verifies(tmp_path: Path):
     assert (ws.root / "app" / "add.py").exists()
 
 
+def test_doctor_mock_passes():
+    # `codeswarm doctor --provider mock` should run its checks and exit 0.
+    from codeswarm.cli import main
+
+    assert main(["doctor", "--provider", "mock"]) == 0
+
+
 def test_missing_api_key_is_friendly(monkeypatch, tmp_path):
     # Selecting a real provider without a key should raise a clear error.
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

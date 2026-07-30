@@ -16,17 +16,24 @@ from pathlib import Path
 from . import __version__
 from .config import load_config
 
-# Load .env if present so API keys are available.
-# override=True makes the .env file authoritative: without it, python-dotenv
-# leaves any value already exported in the shell in place, so a stale
-# `export ARK_API_KEY=...` in your shell/profile would silently shadow the key
-# in .env and cause confusing 401s. Users put keys in .env expecting them to win.
-try:
-    from dotenv import load_dotenv
+# NOTE: `.env` is loaded explicitly in each command (see _load_env) rather than
+# at import time, so `codeswarm doctor` can first capture the pre-load shell
+# state to detect a stale shell key shadowing .env.
 
-    load_dotenv(override=True)
-except Exception:  # pragma: no cover - dotenv is optional at runtime
-    pass
+
+def _load_env() -> None:
+    """Load .env, making it authoritative over stale shell exports.
+
+    override=True matters: without it, python-dotenv leaves any value already
+    exported in the shell in place, so a stale `export ARK_API_KEY=...` would
+    silently shadow the key in .env and cause confusing 401s.
+    """
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(override=True)
+    except Exception:  # pragma: no cover - dotenv is optional at runtime
+        pass
 
 
 def _console():
@@ -70,6 +77,7 @@ def _load_spec(spec_path: str) -> dict:
 
 
 def cmd_build(args: argparse.Namespace) -> int:
+    _load_env()
     console = _console()
     printer = _make_event_printer(console)
 
@@ -178,6 +186,157 @@ def _print_summary(console, result) -> None:
         print(f"Output: {result.output_dir}")
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Diagnose setup: config, API key, connectivity, and tool-calling.
+
+    Runs a few cheap checks and prints a table, so setup problems (like a stale
+    shell key shadowing .env, a wrong model id, or no tool-calling support) are a
+    single command to find instead of a failed build.
+    """
+    import time
+
+    from .config import resolve_role
+    from .llm import Message, build_provider
+    from .llm.factory import key_fingerprint
+
+    console = _console()
+    checks: list[tuple[str, str, str]] = []  # (name, status, detail)
+
+    # --- config ---
+    try:
+        config = load_config(args.config, {"provider": args.provider} if args.provider else None)
+        checks.append(("Config", "OK", f"loaded ({args.config or 'built-in defaults'})"))
+    except Exception as exc:  # noqa: BLE001
+        checks.append(("Config", "FAIL", str(exc)))
+        _print_doctor(console, checks)
+        return 1
+
+    provider_name = config.get("provider", "mock")
+
+    # --- resolve role/provider/model ---
+    try:
+        pname, pcfg, rcfg = resolve_role(config, "developer")
+        model = args.model or rcfg.get("model") or pcfg.get("model")
+        checks.append(("Provider", "OK", f"{provider_name} — base_url={pcfg.get('base_url') or '(default)'}"))
+        checks.append(("Model", "OK" if model else "FAIL", model or "no model configured"))
+    except Exception as exc:  # noqa: BLE001
+        checks.append(("Provider", "FAIL", str(exc)))
+        _print_doctor(console, checks)
+        return 1
+
+    if provider_name == "mock":
+        checks.append(("API key", "SKIP", "mock provider needs no key"))
+        checks.append(("Connectivity", "SKIP", "mock provider is offline"))
+        checks.append(("Tool-calling", "SKIP", "mock simulates tools"))
+        _print_doctor(console, checks)
+        return 0
+
+    # --- API key: capture shell state BEFORE loading .env to detect shadowing ---
+    var = pcfg.get("api_key_env", "")
+    import os
+
+    shell_val = os.environ.get(var)
+    file_val = None
+    try:
+        from dotenv import dotenv_values, find_dotenv
+
+        path = find_dotenv(usecwd=True)
+        if path:
+            file_val = (dotenv_values(path) or {}).get(var)
+    except Exception:  # noqa: BLE001
+        pass
+
+    _load_env()  # override=True: .env wins
+    effective = os.environ.get(var, "")
+
+    if not effective:
+        checks.append(("API key", "FAIL", f"{var} not set — add it to .env or export it"))
+        _print_doctor(console, checks)
+        return 1
+
+    key_detail = f"{var} = {key_fingerprint(effective)}"
+    checks.append(("API key", "OK", key_detail))
+    if shell_val and file_val and shell_val.strip() != file_val.strip():
+        checks.append(
+            ("Key source", "WARN",
+             f"a shell-exported {var} differs from .env — .env wins now (override=True), "
+             f"but run `unset {var}` to avoid confusion")
+        )
+    elif shell_val and not file_val:
+        checks.append(("Key source", "WARN", f"{var} comes from your shell, not .env"))
+    else:
+        checks.append(("Key source", "OK", ".env"))
+
+    # --- connectivity: one tiny completion ---
+    try:
+        provider = build_provider(pname, pcfg, model_override=model)
+        t0 = time.time()
+        resp = provider.complete([Message("user", "reply with the single word: ok")], max_tokens=5)
+        dt = time.time() - t0
+        text = (resp.text or "").strip()[:40]
+        checks.append(("Connectivity", "OK", f"{model} replied in {dt:.1f}s: {text!r}"))
+    except Exception as exc:  # noqa: BLE001
+        checks.append(("Connectivity", "FAIL", str(exc)[:300]))
+        _print_doctor(console, checks)
+        return 1
+
+    # --- tool-calling: developer/tester depend on it ---
+    try:
+        tools = [{
+            "type": "function",
+            "function": {
+                "name": "write_file",
+                "description": "write a file",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                    "required": ["path", "content"],
+                },
+            },
+        }]
+        resp = provider.complete(
+            [Message("user", "Create app/x.py with a hello() function using the write_file tool.")],
+            tools=tools, max_tokens=200,
+        )
+        if resp.tool_calls:
+            checks.append(("Tool-calling", "OK", f"model requested: {resp.tool_calls[0].name}(...)"))
+        else:
+            checks.append(("Tool-calling", "WARN",
+                           "model returned no tool call — the agentic Developer/Tester may not "
+                           "work well; pick a tool-calling-capable model"))
+    except Exception as exc:  # noqa: BLE001
+        checks.append(("Tool-calling", "WARN", str(exc)[:200]))
+
+    ok = _print_doctor(console, checks)
+    return 0 if ok else 1
+
+
+def _print_doctor(console, checks: list[tuple[str, str, str]]) -> bool:
+    """Render the doctor results; return True if no FAIL rows."""
+    colors = {"OK": "green", "WARN": "yellow", "FAIL": "red", "SKIP": "bright_black"}
+    marks = {"OK": "✓", "WARN": "!", "FAIL": "✗", "SKIP": "–"}
+    has_fail = any(s == "FAIL" for _, s, _ in checks)
+    if console:
+        from rich.table import Table
+
+        table = Table(title="CodeSwarm Doctor", show_lines=False)
+        table.add_column("Check")
+        table.add_column("Status")
+        table.add_column("Detail", overflow="fold")
+        for name, status, detail in checks:
+            c = colors.get(status, "white")
+            table.add_row(name, f"[{c}]{marks.get(status,'?')} {status}[/{c}]", detail)
+        console.print(table)
+        summary = "[red]problems found[/red]" if has_fail else "[green]ready to build[/green]"
+        console.print(f"\n{summary}")
+    else:
+        print("\n=== CodeSwarm Doctor ===")
+        for name, status, detail in checks:
+            print(f"  [{marks.get(status,'?')}] {name:<14} {status:<5} {detail}")
+        print("\n" + ("problems found" if has_fail else "ready to build"))
+    return not has_fail
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="codeswarm",
@@ -205,6 +364,14 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--dry-run", action="store_true",
                    help="Use the offline mock provider (no API key needed).")
     b.set_defaults(func=cmd_build)
+
+    d = sub.add_parser("doctor", help="Check config, API key, connectivity, and tool-calling.")
+    d.add_argument("--provider", choices=["byteplus", "openai", "gemini", "mock"],
+                   help="Provider to check (default: the one in config).")
+    d.add_argument("--model", help="Model id to test (default: the configured one).")
+    d.add_argument("--config", help="Path to a config YAML (overrides defaults).")
+    d.set_defaults(func=cmd_doctor)
+
     return parser
 
 
