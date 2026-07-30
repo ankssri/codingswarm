@@ -1,6 +1,6 @@
 # CodeSwarm 🐝
 
-**A provider-agnostic swarm of LLM agents that builds, tests, and reviews software one feature at a time.**
+**A provider-agnostic swarm of LLM agents that design, builds, tests, and reviews software one feature at a time.**
 
 CodeSwarm automates the software lifecycle you currently step through by hand —
 requirements → design → planning → build → test → review → integration — and
@@ -8,7 +8,7 @@ enforces a **quality gate** so a feature is only ever marked *done* when its
 tests pass **and** an independent reviewer agent approves it.
 
 It runs as a **standalone Python program**. There is **no dependency on Claude,
-Claude Code, or any single vendor** — it talks to LLMs over plain HTTP APIs.
+Claude Code, Codex or any single vendor** — it talks to LLMs over plain HTTP APIs.
 Anyone with Python and an API key can run it. Supported providers out of the
 box: **BytePlus ModelArk**, **OpenAI**, and **Google Gemini** (and an offline
 **mock** provider for demos/CI).
@@ -63,7 +63,7 @@ report of exactly which features passed their gates.
 
 ```
 
-### How quality is guaranteed (the core of your ask)
+### How quality is guaranteed
 
 For **every feature**, the orchestrator runs this loop (up to `max_feature_iterations`, default 3):
 
