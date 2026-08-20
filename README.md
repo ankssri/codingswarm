@@ -409,6 +409,29 @@ CodingSwarm/
 
 ---
 
+## Also in this repo: Deepfake Detection app
+
+Alongside CodeSwarm, this repo includes a small, self-contained
+**[deepfake_detector/](deepfake_detector/)** app that detects AI-generated or
+manipulated images/videos using the
+[BytePlus LLM Application Firewall](https://docs.byteplus.com/en/docs/LLM-Application-Firewall/Detect_deepfakes_with_the_SDK)
+deepfake SDK. Submit an image or video as an upload, a local path, or a **URL**,
+and get an *Authentic* / *Manipulated* verdict with confidence and risk labels —
+via a web UI, a JSON API, or a CLI.
+
+```bash
+pip install -r deepfake_detector/requirements.txt
+cp .env.example .env          # fill in the BYTEPLUS_* deepfake section
+python -m deepfake_detector.app        # web UI at http://127.0.0.1:5000
+python -m deepfake_detector.cli ./photo.png   # or the CLI
+```
+
+It reuses only the repo-root `.env` (git-ignored; secrets are masked in all
+output). See **[deepfake_detector/README.md](deepfake_detector/README.md)** for
+full setup, the BytePlus console prerequisites, and how results are interpreted.
+
+---
+
 ## Documentation
 
 - **[docs/CodeSwarm-Solution-Design.pdf](docs/CodeSwarm-Solution-Design.pdf)** —

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deepfake Detection &middot; BytePlus LLM Application Firewall</title>
+  <style>
+    :root {
+      --bg: #0f172a; --panel: #1e293b; --panel-2: #273449;
+      --text: #e2e8f0; --muted: #94a3b8; --border: #334155;
+      --accent: #6366f1; --accent-2: #818cf8;
+      --danger: #f43f5e; --danger-bg: #4c1d2b;
+      --ok: #10b981; --ok-bg: #06372a;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5;
+    }
+    header { padding: 28px 20px 8px; text-align: center; }
+    header h1 { margin: 0 0 4px; font-size: 1.6rem; }
+    header p { margin: 0; color: var(--muted); font-size: .95rem; }
+    main { max-width: 860px; margin: 0 auto; padding: 20px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 22px; margin-bottom: 20px;
+    }
+    .banner {
+      border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; font-size: .9rem;
+    }
+    .banner.warn { background: #3b2f0b; border: 1px solid var(--warn); color: #fde68a; }
+    .banner.info { background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tab {
+      flex: 1; text-align: center; padding: 10px; border-radius: 10px; cursor: pointer;
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+      user-select: none; font-weight: 600;
+    }
+    .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .pane { display: none; }
+    .pane.active { display: block; }
+    label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
+    input[type=url], input[type=text], select {
+      width: 100%; padding: 11px 12px; border-radius: 10px; font-size: .95rem;
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    }
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: 12px; padding: 34px 16px;
+      text-align: center; color: var(--muted); cursor: pointer; transition: .15s;
+      background: var(--panel-2);
+    }
+    .dropzone.drag { border-color: var(--accent-2); color: var(--text); background: #2a3550; }
+    .dropzone strong { color: var(--text); }
+    .row { display: flex; gap: 14px; align-items: end; margin-top: 16px; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 180px; }
+    button.go {
+      background: var(--accent); color: #fff; border: none; border-radius: 10px;
+      padding: 12px 22px; font-size: .98rem; font-weight: 600; cursor: pointer;
+    }
+    button.go:hover { background: var(--accent-2); }
+    button.go:disabled { opacity: .5; cursor: not-allowed; }
+    .hint { font-size: .8rem; color: var(--muted); margin-top: 10px; }
+    .filename { margin-top: 10px; font-size: .88rem; color: var(--accent-2); }
+
+    #result { display: none; }
+    .verdict { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+    .badge {
+      font-weight: 700; padding: 8px 16px; border-radius: 999px; font-size: 1.05rem;
+    }
+    .badge.manip { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+    .badge.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+    .summary { color: var(--text); margin: 6px 0 16px; }
+    .meter { height: 10px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin: 4px 0 16px; }
+    .meter > span { display: block; height: 100%; background: linear-gradient(90deg,#f59e0b,#f43f5e); }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; }
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: .88rem; margin-top: 14px; }
+    .kv div:nth-child(odd) { color: var(--muted); }
+    details { margin-top: 16px; }
+    summary { cursor: pointer; color: var(--accent-2); font-size: .9rem; }
+    pre {
+      background: #0b1220; border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px; overflow: auto; font-size: .8rem; max-height: 360px;
+    }
+    .spinner {
+      display: inline-block; width: 16px; height: 16px; border: 2px solid #ffffff66;
+      border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite;
+      vertical-align: -3px; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { color: var(--danger); font-size: .9rem; margin-top: 12px; }
+    footer { text-align: center; color: var(--muted); font-size: .8rem; padding: 10px 0 40px; }
+    code { background: var(--panel-2); padding: 1px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🛡️ Deepfake Detection</h1>
+    <p>Powered by the BytePlus LLM Application Firewall SDK</p>
+  </header>
+
+  <main>
+    {% if not config_ok %}
+      <div class="banner warn">
+        <strong>Not configured.</strong> {{ config_error }}
+      </div>
+    {% else %}
+      <div class="banner info">
+        Connected to <code>{{ settings.endpoint }}</code> &middot; region
+        <code>{{ settings.region }}</code> &middot; asset <code>{{ settings.appid }}</code>
+      </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active" data-tab="upload">Upload file</div>
+        <div class="tab" data-tab="url">From URL</div>
+      </div>
+
+      <form id="form">
+        <div class="pane active" data-pane="upload">
+          <div id="dropzone" class="dropzone">
+            <strong>Click to choose</strong> or drag &amp; drop an image or video here
+            <div class="filename" id="filename"></div>
+          </div>
+          <input type="file" id="file" name="file" accept=".jpg,.jpeg,.png,.webp,.mp4,.avi" hidden />
+        </div>
+
+        <div class="pane" data-pane="url">
+          <label for="url">Image or video URL</label>
+          <input type="url" id="url" name="url" placeholder="https://example.com/photo.png" />
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="role">Content source</label>
+            <select id="role" name="role">
+              <option value="user">User upload (user)</option>
+              <option value="assistant">Model generated (assistant)</option>
+            </select>
+          </div>
+          <div style="flex:0 0 auto;">
+            <button type="submit" class="go" id="go" {% if not config_ok %}disabled{% endif %}>
+              Detect
+            </button>
+          </div>
+        </div>
+
+        <div class="hint">
+          Images: {{ image_exts|join(', ') }} (max 10&nbsp;MB) &middot;
+          Videos: {{ video_exts|join(', ') }} (max 50&nbsp;MB)
+        </div>
+        <div class="error" id="error"></div>
+      </form>
+    </div>
+
+    <div class="card" id="result">
+      <div class="verdict">
+        <span class="badge" id="badge"></span>
+        <span id="confidence" style="color:var(--muted);"></span>
+      </div>
+      <div class="summary" id="summary"></div>
+      <div class="meter"><span id="meterbar" style="width:0%"></span></div>
+
+      <table id="risktable" style="display:none;">
+        <thead><tr><th>Category</th><th>Label</th><th>Type</th><th>Probability</th></tr></thead>
+        <tbody id="riskbody"></tbody>
+      </table>
+
+      <div class="kv" id="meta"></div>
+
+      <details>
+        <summary>Raw API response (JSON)</summary>
+        <pre id="raw"></pre>
+      </details>
+    </div>
+
+    <footer>
+      Detection results are advisory. A single sample may trigger multiple manipulation
+      labels &mdash; review flagged media against the original.
+    </footer>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let activeTab = "upload";
+
+    document.querySelectorAll(".tab").forEach((t) => {
+      t.addEventListener("click", () => {
+        activeTab = t.dataset.tab;
+        document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+        document.querySelectorAll(".pane").forEach((p) =>
+          p.classList.toggle("active", p.dataset.pane === activeTab));
+        $("error").textContent = "";
+      });
+    });
+
+    // File picker + drag & drop
+    const dz = $("dropzone"), fileInput = $("file");
+    dz.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => showFilename());
+    ["dragover", "dragenter"].forEach((e) =>
+      dz.addEventListener(e, (ev) => { ev.preventDefault(); dz.classList.add("drag"); }));
+    ["dragleave", "drop"].forEach((e) =>
+      dz.addEventListener(e, (ev) => { ev.preventDefault(); dz.classList.remove("drag"); }));
+    dz.addEventListener("drop", (ev) => {
+      if (ev.dataTransfer.files.length) { fileInput.files = ev.dataTransfer.files; showFilename(); }
+    });
+    function showFilename() {
+      const f = fileInput.files[0];
+      $("filename").textContent = f ? `Selected: ${f.name} (${(f.size/1024/1024).toFixed(2)} MB)` : "";
+    }
+
+    $("form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      $("error").textContent = "";
+      const fd = new FormData();
+      fd.append("role", $("role").value);
+      if (activeTab === "upload") {
+        if (!fileInput.files.length) { $("error").textContent = "Choose a file first."; return; }
+        fd.append("file", fileInput.files[0]);
+      } else {
+        const u = $("url").value.trim();
+        if (!u) { $("error").textContent = "Enter a URL first."; return; }
+        fd.append("url", u);
+      }
+
+      const go = $("go");
+      go.disabled = true;
+      go.innerHTML = '<span class="spinner"></span>Detecting…';
+      try {
+        const resp = await fetch("/api/detect", { method: "POST", body: fd });
+        const payload = await resp.json();
+        if (!payload.ok) {
+          $("error").textContent = payload.error + (payload.request_id ? ` (request ${payload.request_id})` : "");
+          $("result").style.display = "none";
+        } else {
+          render(payload.result);
+        }
+      } catch (e) {
+        $("error").textContent = "Request failed: " + e.message;
+      } finally {
+        go.disabled = false;
+        go.textContent = "Detect";
+      }
+    });
+
+    function render(r) {
+      const badge = $("badge");
+      badge.textContent = r.manipulated ? "⚠ Manipulated" : "✓ Authentic";
+      badge.className = "badge " + (r.manipulated ? "manip" : "ok");
+      const pct = r.probability != null ? (r.probability * 100).toFixed(1) + "%" : "n/a";
+      $("confidence").textContent = "Confidence: " + pct;
+      $("summary").textContent = r.summary;
+      $("meterbar").style.width = r.probability != null ? (r.probability * 100) + "%" : "0%";
+
+      const body = $("riskbody");
+      body.innerHTML = "";
+      if (r.risks && r.risks.length) {
+        $("risktable").style.display = "";
+        r.risks.forEach((x) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${x.category}</td><td>${x.label}</td>` +
+            `<td>${x.label_name}</td><td>${(x.prob*100).toFixed(1)}%</td>`;
+          body.appendChild(tr);
+        });
+      } else {
+        $("risktable").style.display = "none";
+      }
+
+      const meta = $("meta");
+      const rows = [
+        ["Decision", `${r.decision_name} (${r.decision_type})`],
+        ["Content format", r.content_format || "—"],
+        ["Message ID", r.msg_id || "—"],
+        ["Matched rules", (r.hit_strategy_ids && r.hit_strategy_ids.length) ? r.hit_strategy_ids.join(", ") : "—"],
+        ["Request ID", r.request_id || "—"],
+      ];
+      if (r.degraded) rows.push(["Degraded", r.degrade_reason || "yes"]);
+      meta.innerHTML = rows.map(([k, v]) => `<div>${k}</div><div>${v}</div>`).join("");
+
+      $("raw").textContent = JSON.stringify(r.raw, null, 2);
+      $("result").style.display = "block";
+      $("result").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  </script>
+</body>
+</html>

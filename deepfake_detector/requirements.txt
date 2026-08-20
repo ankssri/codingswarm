@@ -1,0 +1,8 @@
+# Dependencies for the deepfake detection app (deepfake_detector/).
+# Install with:  pip install -r deepfake_detector/requirements.txt
+
+byteplus-python-sdk-v2>=3.0.0   # BytePlus LLM Application Firewall SDK (byteplussdkllmshield)
+pydantic>=2.0                   # request/response models used by the SDK
+requests>=2.28                  # download image/video from a URL
+python-dotenv>=1.0.0            # load credentials from .env
+Flask>=3.0                      # web UI
