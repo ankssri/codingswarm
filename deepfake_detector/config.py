@@ -112,6 +112,45 @@ class Settings:
             timeout=timeout,
         )
 
+    @classmethod
+    def from_values(
+        cls,
+        *,
+        ak: str,
+        sk: str,
+        appid: str,
+        region: str | None = None,
+        endpoint: str | None = None,
+        timeout: float | None = None,
+    ) -> "Settings":
+        """Build settings from explicit values (e.g. entered in the web UI).
+
+        Validates the three required credentials and raises ``ConfigError``
+        listing whatever is missing, so the UI can show one clear message.
+        """
+        ak = (ak or "").strip()
+        sk = (sk or "").strip()
+        appid = (appid or "").strip()
+        region = (region or "").strip() or "ap-southeast-1"
+        endpoint = (endpoint or "").strip()
+
+        missing = [
+            name
+            for name, value in (("Access Key (AK)", ak), ("Secret Key (SK)", sk), ("AppID", appid))
+            if not value
+        ]
+        if missing:
+            raise ConfigError("Missing required credential(s): " + ", ".join(missing) + ".")
+
+        return cls(
+            ak=ak,
+            sk=sk,
+            appid=appid,
+            region=region,
+            endpoint=endpoint,
+            timeout=float(timeout) if timeout else 50.0,
+        )
+
     # -- safe representations ------------------------------------------------
 
     @staticmethod

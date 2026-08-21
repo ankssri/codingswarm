@@ -54,10 +54,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--json", action="store_true", help="Emit the full result as JSON.")
     parser.add_argument("--env", default=None, help="Path to a .env file.")
+    # Optional credential overrides (use your own without a .env file).
+    parser.add_argument("--ak", default=None, help="BytePlus Access Key ID (overrides .env).")
+    parser.add_argument("--sk", default=None, help="BytePlus Secret Access Key (overrides .env).")
+    parser.add_argument("--appid", default=None, help="Deepfake asset AppID (overrides .env).")
+    parser.add_argument("--region", default=None, help="Region, e.g. ap-southeast-1.")
+    parser.add_argument("--endpoint", default=None, help="Full endpoint override.")
     args = parser.parse_args(argv)
 
     try:
-        settings = Settings.from_env(env_path=args.env)
+        if any((args.ak, args.sk, args.appid)):
+            settings = Settings.from_values(
+                ak=args.ak or "",
+                sk=args.sk or "",
+                appid=args.appid or "",
+                region=args.region,
+                endpoint=args.endpoint,
+            )
+        else:
+            settings = Settings.from_env(env_path=args.env)
     except ConfigError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2

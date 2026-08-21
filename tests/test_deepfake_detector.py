@@ -204,3 +204,70 @@ def test_detector_rejects_unsupported_before_calling_api():
     with pytest.raises(MediaError):
         det.detect_bytes(b"GIF89a" + b"\x00" * 16, "a.gif")
     assert client.last_request is None
+
+
+# --- Settings.from_values (UI / CLI supplied credentials) ------------------
+
+def test_from_values_missing_lists_all():
+    with pytest.raises(ConfigError) as exc:
+        Settings.from_values(ak="", sk="", appid="")
+    msg = str(exc.value)
+    assert "AK" in msg and "SK" in msg and "AppID" in msg
+
+
+def test_from_values_ok_defaults_and_endpoint():
+    s = Settings.from_values(ak="AKx", sk="SKy", appid="app-1")
+    assert s.region == "ap-southeast-1"
+    assert s.endpoint == "https://ap-southeast-1.sdk.access-bp.llm-shield.omni-shield.ai"
+    assert s.timeout == 50.0
+
+
+# --- web app: per-request credentials --------------------------------------
+
+def _build_app_without_server_creds(monkeypatch, fake_response):
+    """Build the Flask app with NO server .env creds and a patched SDK client."""
+    for k in ("BYTEPLUS_LLM_FIREWALL_AK", "BYTEPLUS_LLM_FIREWALL_SK", "BYTEPLUS_DEEPFAKE_APPID"):
+        monkeypatch.delenv(k, raising=False)
+    import deepfake_detector.detector as det_mod
+    import deepfake_detector.config as cfg_mod
+    # Prevent a real .env on disk from configuring the server during tests.
+    monkeypatch.setattr(cfg_mod, "load_dotenv", None, raising=False)
+    monkeypatch.setattr(det_mod, "_build_client", lambda settings: _FakeClient(fake_response))
+    from deepfake_detector.app import create_app
+    return create_app()
+
+
+def test_app_detect_requires_credentials(monkeypatch):
+    app = _build_app_without_server_creds(monkeypatch, _authentic_response())
+    client = app.test_client()
+    resp = client.post("/api/detect", data={"url": "http://x/y.png"})
+    assert resp.status_code == 400
+    body = resp.get_json()
+    assert body["ok"] is False
+    assert body.get("need_credentials") is True
+
+
+def test_app_detect_with_ui_credentials(monkeypatch):
+    import io
+    app = _build_app_without_server_creds(monkeypatch, _manip_response())
+    client = app.test_client()
+    resp = client.post(
+        "/api/detect",
+        data={
+            "ak": "AKuser", "sk": "SKuser", "appid": "app-user",
+            "role": "user",
+            "file": (io.BytesIO(PNG_BYTES), "face.png"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 200
+    result = resp.get_json()["result"]
+    assert result["manipulated"] is True
+    assert result["decision_type"] == 2
+
+
+def test_app_health_reports_no_server_creds(monkeypatch):
+    app = _build_app_without_server_creds(monkeypatch, _authentic_response())
+    body = app.test_client().get("/api/health").get_json()
+    assert body["has_server_creds"] is False
+    assert body["settings"] is None

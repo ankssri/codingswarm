@@ -59,6 +59,33 @@ credentials are never sent anywhere except to the BytePlus endpoint.
 2. Grant the calling account `AccessKeySelfManageAccess` and
    `LLMShieldProtectSdkAccess` permissions.
 
+## Two ways to provide credentials
+
+You can supply BytePlus credentials in **either** of these ways — the app works
+with one, the other, or both:
+
+1. **Server-side `.env`** (steps above) — convenient when you run it yourself.
+2. **In the web UI** — each user opens the **“BytePlus credentials”** panel and
+   enters their **own** Access Key, Secret Key, and AppID. These are used only to
+   build the client for that single request; they are **never logged and never
+   stored on the server**. An optional *“Remember on this device”* box saves them
+   in that browser's `localStorage` only.
+
+**Precedence:** credentials entered in the UI override the server's `.env`.
+
+### Sharing this app with a customer (without sharing your keys)
+
+Run the app **without** a `.env` (or leave the `BYTEPLUS_*` values blank). The
+credentials panel opens automatically and is marked **Required**, so the customer
+enters their own keys. Your keys never leave your machine.
+
+The CLI supports the same override via flags:
+
+```bash
+python -m deepfake_detector.cli ./photo.png \
+  --ak AK... --sk SK... --appid app-... --region ap-southeast-1
+```
+
 ## 3. Run the web app
 
 ```bash

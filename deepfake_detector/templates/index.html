@@ -41,7 +41,7 @@
     .pane { display: none; }
     .pane.active { display: block; }
     label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
-    input[type=url], input[type=text], select {
+    input[type=url], input[type=text], input[type=password], select {
       width: 100%; padding: 11px 12px; border-radius: 10px; font-size: .95rem;
       background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
     }
@@ -54,20 +54,50 @@
     .dropzone strong { color: var(--text); }
     .row { display: flex; gap: 14px; align-items: end; margin-top: 16px; flex-wrap: wrap; }
     .row > div { flex: 1; min-width: 180px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
     button.go {
       background: var(--accent); color: #fff; border: none; border-radius: 10px;
       padding: 12px 22px; font-size: .98rem; font-weight: 600; cursor: pointer;
     }
     button.go:hover { background: var(--accent-2); }
     button.go:disabled { opacity: .5; cursor: not-allowed; }
+    .linkbtn {
+      background: none; border: none; color: var(--accent-2); cursor: pointer;
+      font-size: .82rem; padding: 0; text-decoration: underline;
+    }
     .hint { font-size: .8rem; color: var(--muted); margin-top: 10px; }
     .filename { margin-top: 10px; font-size: .88rem; color: var(--accent-2); }
 
+    /* Credentials panel */
+    details.creds { margin-bottom: 20px; }
+    details.creds > summary {
+      list-style: none; cursor: pointer; padding: 16px 22px; border-radius: 14px;
+      background: var(--panel); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; font-weight: 600;
+    }
+    details.creds[open] > summary { border-radius: 14px 14px 0 0; border-bottom: none; }
+    details.creds > summary::-webkit-details-marker { display: none; }
+    details.creds .body {
+      background: var(--panel); border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 14px 14px; padding: 4px 22px 22px;
+    }
+    .pill { font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+    .pill.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+    .pill.warn { background: #3b2f0b; color: #fde68a; border: 1px solid var(--warn); }
+    .pwwrap { position: relative; }
+    .pwwrap .toggle {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted); cursor: pointer; font-size: .8rem;
+    }
+    .creds-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; gap: 10px; }
+    .remember { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
+    .remember input { width: auto; }
+    .note { font-size: .78rem; color: var(--muted); margin-top: 12px; line-height: 1.45; }
+
     #result { display: none; }
     .verdict { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
-    .badge {
-      font-weight: 700; padding: 8px 16px; border-radius: 999px; font-size: 1.05rem;
-    }
+    .badge { font-weight: 700; padding: 8px 16px; border-radius: 999px; font-size: 1.05rem; }
     .badge.manip { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
     .badge.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
     .summary { color: var(--text); margin: 6px 0 16px; }
@@ -78,8 +108,8 @@
     th { color: var(--muted); font-weight: 600; }
     .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: .88rem; margin-top: 14px; }
     .kv div:nth-child(odd) { color: var(--muted); }
-    details { margin-top: 16px; }
-    summary { cursor: pointer; color: var(--accent-2); font-size: .9rem; }
+    details.raw { margin-top: 16px; }
+    details.raw > summary { cursor: pointer; color: var(--accent-2); font-size: .9rem; }
     pre {
       background: #0b1220; border: 1px solid var(--border); border-radius: 10px;
       padding: 14px; overflow: auto; font-size: .8rem; max-height: 360px;
@@ -102,16 +132,68 @@
   </header>
 
   <main>
-    {% if not config_ok %}
-      <div class="banner warn">
-        <strong>Not configured.</strong> {{ config_error }}
+    <!-- Credentials panel: the user supplies their OWN BytePlus keys here. -->
+    <details class="creds" id="credsPanel" {% if not has_server_creds %}open{% endif %}>
+      <summary>
+        <span>🔑 BytePlus credentials</span>
+        {% if has_server_creds %}
+          <span class="pill ok" id="credsPill">Using server default</span>
+        {% else %}
+          <span class="pill warn" id="credsPill">Required</span>
+        {% endif %}
+      </summary>
+      <div class="body">
+        <p class="hint" style="margin-top:8px;">
+          {% if has_server_creds %}
+            The server already has credentials configured. Leave these blank to use them,
+            or enter your own to override for your requests.
+          {% else %}
+            Enter your BytePlus Access Key, Secret Key, and the AppID of your
+            <em>SDK integration &middot; Deepfake detection</em> asset.
+          {% endif %}
+        </p>
+
+        <div class="grid2" style="margin-top:8px;">
+          <div>
+            <label for="ak">Access Key ID (AK)</label>
+            <input type="text" id="ak" autocomplete="off" spellcheck="false" placeholder="AKLT…" />
+          </div>
+          <div>
+            <label for="sk">Secret Access Key (SK)</label>
+            <div class="pwwrap">
+              <input type="password" id="sk" autocomplete="off" spellcheck="false" placeholder="••••••••" />
+              <button type="button" class="toggle" id="skToggle">show</button>
+            </div>
+          </div>
+          <div>
+            <label for="appid">AppID</label>
+            <input type="text" id="appid" autocomplete="off" spellcheck="false" placeholder="app-…" />
+          </div>
+          <div>
+            <label for="region">Region</label>
+            <select id="region">
+              <option value="ap-southeast-1">ap-southeast-1 (Asia Pacific / Johor)</option>
+              <option value="cn-hongkong">cn-hongkong (Hong Kong)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="creds-actions">
+          <label class="remember">
+            <input type="checkbox" id="remember" />
+            Remember on this device
+          </label>
+          <button type="button" class="linkbtn" id="clearCreds">Clear saved credentials</button>
+        </div>
+
+        <p class="note">
+          🔒 Credentials are sent only to this locally-running app, used to build the
+          BytePlus client for your request, and are never logged or stored on the
+          server. “Remember on this device” saves them in <em>this browser only</em>
+          (localStorage) — leave it unchecked on shared computers.
+        </p>
       </div>
-    {% else %}
-      <div class="banner info">
-        Connected to <code>{{ settings.endpoint }}</code> &middot; region
-        <code>{{ settings.region }}</code> &middot; asset <code>{{ settings.appid }}</code>
-      </div>
-    {% endif %}
+    </details>
 
     <div class="card">
       <div class="tabs">
@@ -142,9 +224,7 @@
             </select>
           </div>
           <div style="flex:0 0 auto;">
-            <button type="submit" class="go" id="go" {% if not config_ok %}disabled{% endif %}>
-              Detect
-            </button>
+            <button type="submit" class="go" id="go">Detect</button>
           </div>
         </div>
 
@@ -171,7 +251,7 @@
 
       <div class="kv" id="meta"></div>
 
-      <details>
+      <details class="raw">
         <summary>Raw API response (JSON)</summary>
         <pre id="raw"></pre>
       </details>
@@ -186,7 +266,37 @@
   <script>
     const $ = (id) => document.getElementById(id);
     let activeTab = "upload";
+    const STORE_KEY = "bp_deepfake_creds";
+    const CRED_FIELDS = ["ak", "sk", "appid", "region"];
 
+    // ---- credentials persistence (this browser only) ----
+    function loadCreds() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) {}
+      if (saved) {
+        CRED_FIELDS.forEach((f) => { if (saved[f] != null) $(f).value = saved[f]; });
+        $("remember").checked = true;
+      }
+    }
+    function saveCreds() {
+      if (!$("remember").checked) { try { localStorage.removeItem(STORE_KEY); } catch (e) {} return; }
+      const data = {};
+      CRED_FIELDS.forEach((f) => (data[f] = $(f).value.trim()));
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) {}
+    }
+    $("clearCreds").addEventListener("click", () => {
+      try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+      CRED_FIELDS.forEach((f) => { if (f !== "region") $(f).value = ""; });
+      $("remember").checked = false;
+    });
+    $("skToggle").addEventListener("click", () => {
+      const el = $("sk");
+      const show = el.type === "password";
+      el.type = show ? "text" : "password";
+      $("skToggle").textContent = show ? "hide" : "show";
+    });
+
+    // ---- tabs ----
     document.querySelectorAll(".tab").forEach((t) => {
       t.addEventListener("click", () => {
         activeTab = t.dataset.tab;
@@ -197,7 +307,7 @@
       });
     });
 
-    // File picker + drag & drop
+    // ---- file picker + drag & drop ----
     const dz = $("dropzone"), fileInput = $("file");
     dz.addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", () => showFilename());
@@ -213,11 +323,20 @@
       $("filename").textContent = f ? `Selected: ${f.name} (${(f.size/1024/1024).toFixed(2)} MB)` : "";
     }
 
+    // ---- submit ----
     $("form").addEventListener("submit", async (ev) => {
       ev.preventDefault();
       $("error").textContent = "";
       const fd = new FormData();
       fd.append("role", $("role").value);
+
+      // attach credentials if the user entered any
+      CRED_FIELDS.forEach((f) => {
+        const v = $(f).value.trim();
+        if (v) fd.append(f, v);
+      });
+      saveCreds();
+
       if (activeTab === "upload") {
         if (!fileInput.files.length) { $("error").textContent = "Choose a file first."; return; }
         fd.append("file", fileInput.files[0]);
@@ -235,6 +354,7 @@
         const payload = await resp.json();
         if (!payload.ok) {
           $("error").textContent = payload.error + (payload.request_id ? ` (request ${payload.request_id})` : "");
+          if (payload.need_credentials) $("credsPanel").open = true;
           $("result").style.display = "none";
         } else {
           render(payload.result);
@@ -285,6 +405,8 @@
       $("result").style.display = "block";
       $("result").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
+
+    loadCreds();
   </script>
 </body>
 </html>

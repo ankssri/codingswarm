@@ -4,14 +4,20 @@ Run it with::
 
     python -m deepfake_detector.app          # or: flask --app deepfake_detector.app run
 
-The credentials come from `.env` (see config.py). If they are missing, the app
-still starts and shows a clear configuration banner instead of crashing.
+Credentials can come from two places:
+
+* the server's `.env` (see config.py) -- convenient when you run it yourself, and
+* the web UI -- so you can share this app with a customer who enters their OWN
+  BytePlus AK/SK and AppID, without ever seeing yours.
+
+Credentials entered in the UI are used only for that single request to build the
+client; they are never logged, never persisted server-side, and take precedence
+over `.env`. If neither source has credentials, the UI asks the user to enter them.
 """
 
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 
@@ -27,51 +33,97 @@ logger = logging.getLogger("deepfake_detector")
 MAX_CONTENT_LENGTH = VIDEO_MAX_BYTES + (1 * 1024 * 1024)
 
 
-def _load_detector() -> tuple[DeepfakeDetector | None, str]:
-    """Try to build a detector. Returns (detector, error_message)."""
+def _env_settings() -> tuple[Settings | None, str]:
+    """Load optional server-side settings from .env. Returns (settings, error)."""
     try:
-        settings = Settings.from_env()
+        return Settings.from_env(), ""
     except ConfigError as exc:
         return None, str(exc)
-    return DeepfakeDetector(settings), ""
+
+
+def _settings_for_request(form, env_settings: Settings | None) -> Settings | None:
+    """Resolve which credentials to use for this request.
+
+    UI-provided credentials win. If the user supplied any credential field, we
+    build settings from those (region/endpoint fall back to the server's when
+    left blank). If the user supplied none, we use the server's .env settings
+    (which may be None when the app is shared without any server credentials).
+    """
+    ak = (form.get("ak") or "").strip()
+    sk = (form.get("sk") or "").strip()
+    appid = (form.get("appid") or "").strip()
+    region = (form.get("region") or "").strip()
+    endpoint = (form.get("endpoint") or "").strip()
+
+    if not any((ak, sk, appid, region, endpoint)):
+        return env_settings  # no overrides -> use server config (may be None)
+
+    # Region/endpoint/timeout may sensibly inherit from the server defaults;
+    # AK/SK/AppID must be supplied by the user (validated in from_values).
+    return Settings.from_values(
+        ak=ak,
+        sk=sk,
+        appid=appid,
+        region=region or (env_settings.region if env_settings else "ap-southeast-1"),
+        endpoint=endpoint,
+        timeout=env_settings.timeout if env_settings else None,
+    )
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
-    detector, config_error = _load_detector()
+    env_settings, config_error = _env_settings()
 
     @app.get("/")
     def index():
-        config_ok = detector is not None
         return render_template(
             "index.html",
-            config_ok=config_ok,
-            config_error=config_error,
-            settings=detector.settings.masked() if detector else None,
+            has_server_creds=env_settings is not None,
+            server_settings=env_settings.masked() if env_settings else None,
             image_exts=sorted(IMAGE_EXTS),
             video_exts=sorted(VIDEO_EXTS),
         )
 
     @app.get("/api/health")
     def health():
+        # Only ever expose masked, non-secret info about the server's own config.
         return jsonify(
             {
-                "status": "ok" if detector else "unconfigured",
+                "status": "ok" if env_settings else "no-server-creds",
+                "has_server_creds": env_settings is not None,
                 "config_error": config_error,
-                "settings": detector.settings.masked() if detector else None,
+                "settings": env_settings.masked() if env_settings else None,
             }
         )
 
     @app.post("/api/detect")
     def detect():
-        if detector is None:
-            return jsonify({"ok": False, "error": config_error}), 503
-
         role = (request.form.get("role") or "user").strip() or "user"
         url = (request.form.get("url") or "").strip()
         upload = request.files.get("file")
+
+        # Resolve credentials (UI overrides win; else server .env).
+        try:
+            settings = _settings_for_request(request.form, env_settings)
+        except ConfigError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        if settings is None:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "No BytePlus credentials. Open the "
+                        "“BytePlus credentials” section and enter your "
+                        "Access Key, Secret Key, and AppID.",
+                        "need_credentials": True,
+                    }
+                ),
+                400,
+            )
+
+        detector = DeepfakeDetector(settings)
 
         try:
             if upload and upload.filename:
@@ -82,10 +134,7 @@ def create_app() -> Flask:
             elif url:
                 result = detector.detect_url(url, role=role)
             else:
-                return (
-                    jsonify({"ok": False, "error": "Provide a file or a URL."}),
-                    400,
-                )
+                return jsonify({"ok": False, "error": "Provide a file or a URL."}), 400
         except MediaError as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
         except DetectionError as exc:
